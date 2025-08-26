@@ -46,7 +46,7 @@
             user-select: none;
             font-weight: bold;
         }
-        input[type="text"], input[type="date"], textarea {
+        input[type="text"], input[type="date"], input[type="number"], textarea {
             width: 100%;
             padding: 8px;
             margin: 4px 0;
@@ -275,6 +275,12 @@
             border-radius: 4px;
             width: 150px;
         }
+        .export-temp-button {
+            background-color: #ff9800;
+        }
+        .export-temp-button:hover {
+            background-color: #f57c00;
+        }
     </style>
 </head>
 <body>
@@ -299,6 +305,7 @@
         <button onclick="document.getElementById('updateFileUpload').click()">Cập nhật DSKH excel</button>
         <button onclick="reloadExcel()">Tải lại Excel</button>
         <button onclick="exportExcel()">Xuất Excel</button>
+        <button class="export-temp-button" onclick="exportTempOrder()">Xuất đơn hàng tạm</button>
         <button onclick="showSortPopup()">Sắp xếp</button>
     </div>
 
@@ -333,6 +340,7 @@
                 <th>Giá bán lẻ</th>
                 <th>Chiết khấu</th>
                 <th>Giá mua vào</th>
+                <th>Số lượng</th>
                 <th>Tên chuỗi NT</th>
                 <th>Nhân viên phụ trách</th>
                 <th>Sản phẩm đã đặt hàng</th>
@@ -414,6 +422,7 @@
             retailPrice: '',
             discount: '',
             purchasePrice: '',
+            quantity: '',
             chainName: '',
             staff: '',
             ordered: false,
@@ -437,6 +446,7 @@
                 <td><input type="text" value="${customer.retailPrice || ''}" onchange="updateCustomer(${index}, 'retailPrice', this.value)"></td>
                 <td><input type="text" value="${customer.discount || ''}" onchange="updateCustomer(${index}, 'discount', this.value)"></td>
                 <td><input type="text" value="${customer.purchasePrice || ''}" onchange="updateCustomer(${index}, 'purchasePrice', this.value)"></td>
+                <td><input type="number" min="0" value="${customer.quantity || ''}" onchange="updateCustomer(${index}, 'quantity', this.value)"></td>
                 <td><input type="text" value="${customer.chainName || ''}" onchange="updateCustomer(${index}, 'chainName', this.value)"></td>
                 <td><input type="text" value="${customer.staff || ''}" onchange="updateCustomer(${index}, 'staff', this.value)"></td>
                 <td><input type="checkbox" ${customer.ordered ? 'checked' : ''} onchange="updateCustomer(${index}, 'ordered', this.checked)"></td>
@@ -582,7 +592,7 @@
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, {
                         raw: false,
                         defval: "",
-                        header: ["STT", "Mã sản phẩm", "Tên sản phẩm", "Quy cách", "Giá bán lẻ", "Chiết khấu", "Giá mua vào", "Tên chuỗi NT", "Nhân viên phụ trách", "Đã đặt hàng", "Ghi chú"]
+                        header: ["STT", "Mã sản phẩm", "Tên sản phẩm", "Quy cách", "Giá bán lẻ", "Chiết khấu", "Giá mua vào", "Số lượng", "Tên chuỗi NT", "Nhân viên phụ trách", "Đã đặt hàng", "Ghi chú"]
                     });
 
                     // Cập nhật danh sách sản phẩm
@@ -594,6 +604,7 @@
                             retailPrice: row['Giá bán lẻ'] || '',
                             discount: row['Chiết khấu'] || '',
                             purchasePrice: row['Giá mua vào'] || '',
+                            quantity: row['Số lượng'] || '',
                             chainName: row['Tên chuỗi NT'] || '',
                             staff: row['Nhân viên phụ trách'] || '',
                             ordered: row['Đã đặt hàng'] === 'Có' || row['Đã đặt hàng'] === 'TRUE',
@@ -691,6 +702,7 @@
             "Giá bán lẻ": c.retailPrice,
             "Chiết khấu": c.discount,
             "Giá mua vào": c.purchasePrice,
+            "Số lượng": c.quantity,
             "Tên chuỗi NT": c.chainName,
             "Nhân viên phụ trách": c.staff,
             "Đã đặt hàng": c.ordered ? "Có" : "Không",
@@ -705,6 +717,85 @@
         const fileName = `${fullName}-dulieusanpham-${date}.xlsx`;
 
         XLSX.writeFile(wb, fileName);
+    }
+
+    // Hàm xuất đơn hàng tạm
+    function exportTempOrder() {
+        // Lấy các hàng được chọn
+        const selectedRows = [];
+        const checkboxes = document.querySelectorAll('#customerTable tbody tr input[type="checkbox"]');
+        
+        checkboxes.forEach((checkbox, index) => {
+            if (checkbox.checked) {
+                selectedRows.push(customers[index]);
+            }
+        });
+        
+        if (selectedRows.length === 0) {
+            alert('Vui lòng chọn ít nhất một sản phẩm để xuất đơn hàng tạm.');
+            return;
+        }
+        
+        // Tạo dữ liệu Excel với tiêu đề
+        const dataForExport = [
+            ["BẢNG ĐƠN HÀNG TẠM TÍNH SẢN LƯỢNG"],
+            [""], // Dòng trống
+            ["STT", "Mã sản phẩm", "Tên sản phẩm", "Quy cách", "Giá bán lẻ", "Chiết khấu", "Giá mua vào", "Số lượng", "Tên chuỗi NT", "Nhân viên phụ trách", "Đã đặt hàng", "Ghi chú"]
+        ];
+        
+        // Thêm dữ liệu sản phẩm
+        selectedRows.forEach((c, index) => {
+            dataForExport.push([
+                index + 1,
+                c.code,
+                c.name,
+                c.specification,
+                c.retailPrice,
+                c.discount,
+                c.purchasePrice,
+                c.quantity,
+                c.chainName,
+                c.staff,
+                c.ordered ? "Có" : "Không",
+                c.note
+            ]);
+        });
+        
+        // Tạo worksheet từ dữ liệu
+        const ws = XLSX.utils.aoa_to_sheet(dataForExport);
+        
+        // Thiết lập độ rộng cột
+        const colWidths = [
+            {wch: 5},  // STT
+            {wch: 15}, // Mã sản phẩm
+            {wch: 30}, // Tên sản phẩm
+            {wch: 20}, // Quy cách
+            {wch: 12}, // Giá bán lẻ
+            {wch: 12}, // Chiết khấu
+            {wch: 12}, // Giá mua vào
+            {wch: 10}, // Số lượng
+            {wch: 20}, // Tên chuỗi NT
+            {wch: 20}, // Nhân viên phụ trách
+            {wch: 15}, // Đã đặt hàng
+            {wch: 30}  // Ghi chú
+        ];
+        ws['!cols'] = colWidths;
+        
+        // Merge ô tiêu đề
+        if (!ws['!merges']) ws['!merges'] = [];
+        ws['!merges'].push({s: {r: 0, c: 0}, e: {r: 0, c: 11}}); // Merge từ cột A đến L cho tiêu đề
+        
+        // Tạo workbook và thêm sheet
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Đơn hàng tạm");
+        
+        // Xuất file
+        const fullName = document.getElementById('fullName').value || 'unknown';
+        const date = document.getElementById('date').value || new Date().toISOString().split('T')[0];
+        const fileName = `${fullName}-don-hang-tam-${date}.xlsx`;
+        
+        XLSX.writeFile(wb, fileName);
+        alert(`Đã xuất file đơn hàng tạm với ${selectedRows.length} sản phẩm.`);
     }
 
     // Các hàm khác
@@ -786,6 +877,7 @@
         
         let countdown = 8;
         const countdownElement = document.getElementById('countdown');
+        countdownElement.textContent = countdown;
         
         const timer = setInterval(() => {
             countdown--;
@@ -804,87 +896,43 @@
         };
     }
 
-    // Các hàm tìm kiếm và ẩn/hiện hàng
-    function searchCustomers() {
-        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-        const tbody = document.querySelector('#customerTable tbody');
-        
-        tbody.innerHTML = '';
+    function resetData() {
+        if (confirm('Bạn có chắc chắn muốn làm mới dữ liệu? Tất cả dữ liệu chưa lưu sẽ bị mất.')) {
+            customers = [];
+            currentCustomerCode = 1;
+            renderTable();
+            alert('Dữ liệu đã được làm mới.');
+        }
+    }
 
-        customers
-            .filter(product => 
-                product.code.toLowerCase().includes(searchTerm) ||
-                product.name.toLowerCase().includes(searchTerm) ||
-                product.chainName.toLowerCase().includes(searchTerm) ||
-                product.staff.toLowerCase().includes(searchTerm) ||
-                (product.ordered && "đặt hàng".includes(searchTerm))
-            )
-            .forEach((product, index) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><input type="checkbox"></td>
-                    <td>${index + 1}</td>
-                    <td><input type="text" value="${product.code}" onchange="updateCustomer(${index}, 'code', this.value)"></td>
-                    <td><input type="text" value="${product.name}" onchange="updateCustomer(${index}, 'name', this.value)"></td>
-                    <td><input type="text" value="${product.specification}" onchange="updateCustomer(${index}, 'specification', this.value)"></td>
-                    <td><input type="text" value="${product.retailPrice}" onchange="updateCustomer(${index}, 'retailPrice', this.value)"></td>
-                    <td><input type="text" value="${product.discount}" onchange="updateCustomer(${index}, 'discount', this.value)"></td>
-                    <td><input type="text" value="${product.purchasePrice}" onchange="updateCustomer(${index}, 'purchasePrice', this.value)"></td>
-                    <td><input type="text" value="${product.chainName}" onchange="updateCustomer(${index}, 'chainName', this.value)"></td>
-                    <td><input type="text" value="${product.staff}" onchange="updateCustomer(${index}, 'staff', this.value)"></td>
-                    <td><input type="checkbox" ${product.ordered ? 'checked' : ''} onchange="updateCustomer(${index}, 'ordered', this.checked)"></td>
-                    <td><textarea onchange="updateCustomer(${index}, 'note', this.value)">${product.note || ''}</textarea></td>
-                    <td><button onclick="deleteCustomer(${index})">Xóa</button></td>
-                `;
-                if (product.ordered) {
-                    tr.classList.add('ordered');
-                }
-                tbody.appendChild(tr);
-            });
+    function searchCustomers() {
+        const searchText = document.getElementById('searchInput').value.toLowerCase();
+        const rows = document.querySelectorAll('#customerTable tbody tr');
+        
+        rows.forEach((row, index) => {
+            const rowData = customers[index];
+            const match = Object.values(rowData).some(value => 
+                value && value.toString().toLowerCase().includes(searchText)
+            );
+            
+            row.style.display = match ? '' : 'none';
+        });
     }
 
     function searchByStaff() {
-        const searchTerm = document.getElementById('staffSearchInput').value.toLowerCase().trim();
-        const tbody = document.querySelector('#customerTable tbody');
+        const staffName = document.getElementById('staffSearchInput').value.toLowerCase();
+        const rows = document.querySelectorAll('#customerTable tbody tr');
         
-        tbody.innerHTML = '';
-
-        customers
-            .filter(product => product.staff.toLowerCase().includes(searchTerm))
-            .forEach((product, index) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><input type="checkbox"></td>
-                    <td>${index + 1}</td>
-                    <td><input type="text" value="${product.code}" onchange="updateCustomer(${index}, 'code', this.value)"></td>
-                    <td><input type="text" value="${product.name}" onchange="updateCustomer(${index}, 'name', this.value)"></td>
-                    <td><input type="text" value="${product.specification}" onchange="updateCustomer(${index}, 'specification', this.value)"></td>
-                    <td><input type="text" value="${product.retailPrice}" onchange="updateCustomer(${index}, 'retailPrice', this.value)"></td>
-                    <td><input type="text" value="${product.discount}" onchange="updateCustomer(${index}, 'discount', this.value)"></td>
-                    <td><input type="text" value="${product.purchasePrice}" onchange="updateCustomer(${index}, 'purchasePrice', this.value)"></td>
-                    <td><input type="text" value="${product.chainName}" onchange="updateCustomer(${index}, 'chainName', this.value)"></td>
-                    <td><input type="text" value="${product.staff}" onchange="updateCustomer(${index}, 'staff', this.value)"></td>
-                    <td><input type="checkbox" ${product.ordered ? 'checked' : ''} onchange="updateCustomer(${index}, 'ordered', this.checked)"></td>
-                    <td><textarea onchange="updateCustomer(${index}, 'note', this.value)">${product.note || ''}</textarea></td>
-                    <td><button onclick="deleteCustomer(${index})">Xóa</button></td>
-                `;
-                if (product.ordered) {
-                    tr.classList.add('ordered');
-                }
-                tbody.appendChild(tr);
-            });
+        rows.forEach((row, index) => {
+            const staff = customers[index].staff.toLowerCase();
+            row.style.display = staff.includes(staffName) ? '' : 'none';
+        });
     }
-
-    let hiddenRows = [];
 
     function hideRows() {
         const rows = document.querySelectorAll('#customerTable tbody tr');
-        hiddenRows = [];
-
         rows.forEach((row, index) => {
-            const checkbox = row.querySelector('input[type="checkbox"]'); 
-            if (checkbox && checkbox.checked) {
-                hiddenRows.push(index);
+            if (customers[index].ordered) {
                 row.style.display = 'none';
             }
         });
@@ -892,49 +940,33 @@
 
     function unhideRows() {
         const rows = document.querySelectorAll('#customerTable tbody tr');
-        hiddenRows.forEach(index => {
-            rows[index].style.display = '';
+        rows.forEach(row => {
+            row.style.display = '';
         });
-        hiddenRows = [];
-    }
-
-    function resetData() {
-        customers.forEach(product => {
-            product.ordered = false;
-        });
-        renderTable();
-        alert('Tất cả các lựa chọn đã được bỏ chọn!');
     }
 
     function openStaffSelection() {
-        const staffNamesInput = prompt("Nhập danh sách tên nhân viên phụ trách, ngăn cách nhau bằng dấu phẩy:");
-        if (staffNamesInput) {
-            const staffNames = staffNamesInput.split(',').map(name => name.trim().toLowerCase());
-            renderTable();
-            autoSelectByStaff(staffNames);
+        const staffList = [...new Set(customers.map(c => c.staff).filter(Boolean))];
+        const selectedStaff = prompt(`Danh sách nhân viên:\n${staffList.join('\n')}\n\nNhập tên nhân viên để ẩn:`);
+        
+        if (selectedStaff) {
+            const rows = document.querySelectorAll('#customerTable tbody tr');
+            rows.forEach((row, index) => {
+                if (customers[index].staff === selectedStaff) {
+                    row.style.display = 'none';
+                }
+            });
         }
     }
 
-    function autoSelectByStaff(staffNames) {
-        const rows = document.querySelectorAll('#customerTable tbody tr');
-        
-        rows.forEach(row => {
-            const staffCell = row.cells[9];
-            const checkbox = row.querySelector('input[type="checkbox"]');
-            
-            if (staffCell && checkbox) {
-                const staffText = staffCell.querySelector('input[type="text"]').value.trim().toLowerCase();
-                if (staffNames.includes(staffText)) {
-                    checkbox.checked = true;
-                } else {
-                    checkbox.checked = false;
-                }
-            }
-        });
-    }
-
     function groupAndSortData() {
-        alert("Tính năng sắp xếp và nhóm dữ liệu đang được phát triển.");
+        const sortField = document.getElementById('sortField').value;
+        customers.sort((a, b) => {
+            const valA = Object.values(a)[sortField] || '';
+            const valB = Object.values(b)[sortField] || '';
+            return valA.toString().localeCompare(valB.toString());
+        });
+        renderTable();
         closeSortPopup();
     }
 </script>
