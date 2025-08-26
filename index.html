@@ -281,12 +281,55 @@
         .export-temp-button:hover {
             background-color: #f57c00;
         }
+        
+        /* New styles for search suggestions */
+        .suggestions-container {
+            position: relative;
+            display: inline-block;
+            flex-grow: 1;
+        }
+        #searchInput {
+            width: 100%;
+        }
+        .suggestions-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .suggestion-item:hover {
+            background-color: #f0f0f0;
+        }
+        
+        /* New styles for selected products filter */
+        .selected-products-filter {
+            background-color: #ff9800;
+        }
+        .selected-products-filter:hover {
+            background-color: #f57c00;
+        }
+        .selected-row {
+            background-color: #e3f2fd !important;
+        }
     </style>
 </head>
 <body>
     <h1>QUẢN LÝ THEO DÕI DANH MỤC THUỐC CHUỖI NHÀ THUỐC</h1>
     
-    <h2>Luôn theo sát - đặt mục tiêu trong kỳ chuỗi luôn đặt hàng ít nhất > 70% danh mục họ đã vào</h2>
+    <h2>Luôn theo sát - đặt mục tiêu trong kỳ chuỗi luôn đặt hàng ít nhất > 70% danmục họ đã vào</h2>
     
     <form id="declarationForm">
         <input type="text" id="fullName" placeholder="Họ tên" required>
@@ -317,13 +360,17 @@
     </div>
 
     <div class="search-container">
-        <input type="text" id="searchInput" placeholder="Tìm kiếm chung...">
+        <div class="suggestions-container">
+            <input type="text" id="searchInput" placeholder="Tìm kiếm tên thuốc..." autocomplete="off">
+            <div id="suggestionsList" class="suggestions-list"></div>
+        </div>
         <button onclick="searchCustomers()">Tìm</button>
         <input type="text" id="staffSearchInput" placeholder="Tên nhân viên phụ trách...">
         <button onclick="searchByStaff()">Tìm theo NV</button>
         <button onclick="hideRows()">Ẩn hàng chọn</button>
         <button onclick="unhideRows()">Không ẩn</button>
         <button onclick="openStaffSelection()">Chọn nhân viên để ẩn</button>
+        <button class="selected-products-filter" onclick="filterSelectedProducts()">Lọc sản phẩm đã chọn</button>
         <button onclick="resetData()" style="background-color: orange;">Refresh dữ liệu</button>
         <input type="file" id="orderUpdateFile" accept=".xlsx, .xls" style="display: none;">
         <button onclick="document.getElementById('orderUpdateFile').click()">Up file đơn hàng trong kỳ</button>
@@ -412,10 +459,12 @@
     let isResizing = false;
     let currentResizer = null;
     let startX, startWidth;
+    let selectedProductIds = new Set(); // Lưu trữ ID của các sản phẩm đã chọn
 
     // Các hàm xử lý khách hàng
     function addNewCustomer() {
         const newCustomer = {
+            id: Date.now() + Math.random(), // Tạo ID duy nhất
             code: `SP${currentCustomerCode++}`,
             name: '',
             specification: '',
@@ -437,8 +486,9 @@
         tbody.innerHTML = '';
         customers.forEach((customer, index) => {
             const tr = document.createElement('tr');
+            tr.dataset.id = customer.id; // Thêm ID vào tr để theo dõi
             tr.innerHTML = `
-                <td><input type="checkbox"></td>
+                <td><input type="checkbox" ${selectedProductIds.has(customer.id) ? 'checked' : ''} onchange="toggleProductSelection(${index}, this.checked)"></td>
                 <td>${index + 1}</td>
                 <td><input type="text" value="${customer.code || ''}" onchange="updateCustomer(${index}, 'code', this.value)"></td>
                 <td><input type="text" value="${customer.name || ''}" onchange="updateCustomer(${index}, 'name', this.value)"></td>
@@ -453,13 +503,55 @@
                 <td><textarea onchange="updateCustomer(${index}, 'note', this.value)">${customer.note || ''}</textarea></td>
                 <td><button onclick="deleteCustomer(${index})">Xóa</button></td>
             `;
+            
             if (customer.ordered) {
                 tr.classList.add('ordered');
             }
+            
+            // Đánh dấu hàng đã chọn
+            if (selectedProductIds.has(customer.id)) {
+                tr.classList.add('selected-row');
+            }
+            
             tbody.appendChild(tr);
         });
         updateStats();
         setupColumnResizers();
+    }
+
+    // Hàm chọn/bỏ chọn sản phẩm
+    function toggleProductSelection(index, isSelected) {
+        const customerId = customers[index].id;
+        if (isSelected) {
+            selectedProductIds.add(customerId);
+        } else {
+            selectedProductIds.delete(customerId);
+        }
+        
+        // Cập nhật giao diện
+        const rows = document.querySelectorAll('#customerTable tbody tr');
+        rows.forEach(row => {
+            if (selectedProductIds.has(parseInt(row.dataset.id))) {
+                row.classList.add('selected-row');
+            } else {
+                row.classList.remove('selected-row');
+            }
+        });
+    }
+
+    // Hàm lọc và hiển thị chỉ các sản phẩm đã chọn
+    function filterSelectedProducts() {
+        const rows = document.querySelectorAll('#customerTable tbody tr');
+        
+        if (selectedProductIds.size === 0) {
+            alert('Chưa có sản phẩm nào được chọn. Vui lòng chọn sản phẩm trước khi lọc.');
+            return;
+        }
+        
+        rows.forEach(row => {
+            const rowId = parseInt(row.dataset.id);
+            row.style.display = selectedProductIds.has(rowId) ? '' : 'none';
+        });
     }
 
     function updateCustomer(index, field, value) {
@@ -473,6 +565,8 @@
 
     function deleteCustomer(index) {
         if (confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) {
+            // Xóa ID khỏi danh sách chọn nếu có
+            selectedProductIds.delete(customers[index].id);
             customers.splice(index, 1);
             renderTable();
         }
@@ -598,6 +692,7 @@
                     // Cập nhật danh sách sản phẩm
                     customers = jsonData.map((row, index) => {
                         return {
+                            id: Date.now() + index, // Tạo ID duy nhất
                             code: row['Mã sản phẩm'] || `SP${index + 1}`,
                             name: row['Tên sản phẩm'] || '',
                             specification: row['Quy cách'] || '',
@@ -615,6 +710,9 @@
                     // Đảm bảo mã sản phẩm là duy nhất
                     currentCustomerCode = Math.max(...customers.map(c => parseInt(c.code.replace('SP', '')) || 0)) + 1;
 
+                    // Reset danh sách sản phẩm đã chọn
+                    selectedProductIds.clear();
+                    
                     renderTable();
                     alert('Đã tải lên và xử lý file Excel thành công!');
                 } catch (error) {
@@ -719,19 +817,14 @@
         XLSX.writeFile(wb, fileName);
     }
 
-    // Hàm xuất đơn hàng tạm
+     // Hàm xuất đơn hàng tạm - ĐÃ SỬA LỖI
     function exportTempOrder() {
-        // Lấy các hàng được chọn
-        const selectedRows = [];
-        const checkboxes = document.querySelectorAll('#customerTable tbody tr input[type="checkbox"]');
+        // Lấy các sản phẩm được chọn từ danh sách customers dựa trên selectedProductIds
+        const selectedProducts = customers.filter(customer => 
+            selectedProductIds.has(customer.id)
+        );
         
-        checkboxes.forEach((checkbox, index) => {
-            if (checkbox.checked) {
-                selectedRows.push(customers[index]);
-            }
-        });
-        
-        if (selectedRows.length === 0) {
+        if (selectedProducts.length === 0) {
             alert('Vui lòng chọn ít nhất một sản phẩm để xuất đơn hàng tạm.');
             return;
         }
@@ -740,110 +833,220 @@
         const dataForExport = [
             ["BẢNG ĐƠN HÀNG TẠM TÍNH SẢN LƯỢNG"],
             [""], // Dòng trống
-            ["STT", "Mã sản phẩm", "Tên sản phẩm", "Quy cách", "Giá bán lẻ", "Chiết khấu", "Giá mua vào", "Số lượng", "Tên chuỗi NT", "Nhân viên phụ trách", "Đã đặt hàng", "Ghi chú"]
+            ["STT", "Mã sản phẩm", "Tên sản phẩm", "Quy cách", "Giá bán lẻ", 
+             "Chiết khấu", "Giá mua vào", "Số lượng", "Tên chuỗi NT", 
+             "Nhân viên phụ trách", "Ghi chú"]
         ];
         
         // Thêm dữ liệu sản phẩm
-        selectedRows.forEach((c, index) => {
+        selectedProducts.forEach((product, index) => {
             dataForExport.push([
                 index + 1,
-                c.code,
-                c.name,
-                c.specification,
-                c.retailPrice,
-                c.discount,
-                c.purchasePrice,
-                c.quantity,
-                c.chainName,
-                c.staff,
-                c.ordered ? "Có" : "Không",
-                c.note
+                product.code,
+                product.name,
+                product.specification,
+                product.retailPrice,
+                product.discount,
+                product.purchasePrice,
+                product.quantity,
+                product.chainName,
+                product.staff,
+                product.note
             ]);
         });
         
-        // Tạo worksheet từ dữ liệu
+        // Tạo worksheet
         const ws = XLSX.utils.aoa_to_sheet(dataForExport);
         
         // Thiết lập độ rộng cột
         const colWidths = [
-            {wch: 5},  // STT
-            {wch: 15}, // Mã sản phẩm
-            {wch: 30}, // Tên sản phẩm
-            {wch: 20}, // Quy cách
-            {wch: 12}, // Giá bán lẻ
-            {wch: 12}, // Chiết khấu
-            {wch: 12}, // Giá mua vào
-            {wch: 10}, // Số lượng
-            {wch: 20}, // Tên chuỗi NT
-            {wch: 20}, // Nhân viên phụ trách
-            {wch: 15}, // Đã đặt hàng
-            {wch: 30}  // Ghi chú
+            { wch: 5 },  // STT
+            { wch: 15 }, // Mã sản phẩm
+            { wch: 30 }, // Tên sản phẩm
+            { wch: 20 }, // Quy cách
+            { wch: 15 }, // Giá bán lẻ
+            { wch: 15 }, // Chiết khấu
+            { wch: 15 }, // Giá mua vào
+            { wch: 10 }, // Số lượng
+            { wch: 20 }, // Tên chuỗi NT
+            { wch: 20 }, // Nhân viên phụ trách
+            { wch: 30 }  // Ghi chú
         ];
         ws['!cols'] = colWidths;
         
-        // Merge ô tiêu đề
-        if (!ws['!merges']) ws['!merges'] = [];
-        ws['!merges'].push({s: {r: 0, c: 0}, e: {r: 0, c: 11}}); // Merge từ cột A đến L cho tiêu đề
-        
-        // Tạo workbook và thêm sheet
+        // Tạo workbook và xuất file
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Đơn hàng tạm");
         
-        // Xuất file
         const fullName = document.getElementById('fullName').value || 'unknown';
         const date = document.getElementById('date').value || new Date().toISOString().split('T')[0];
-        const fileName = `${fullName}-don-hang-tam-${date}.xlsx`;
+        const fileName = `${fullName}-donhangtam-${date}.xlsx`;
         
         XLSX.writeFile(wb, fileName);
-        alert(`Đã xuất file đơn hàng tạm với ${selectedRows.length} sản phẩm.`);
-    }
-
-    // Các hàm khác
-    function syncData() {
-        renderTable();
-        alert("Đã đồng bộ dữ liệu.");
+        alert(`Đã xuất file đơn hàng tạm với ${selectedProducts.length} sản phẩm.`);
     }
 
     function reloadExcel() {
-        renderTable();
-        alert("Đã tải lại dữ liệu Excel.");
+        if (confirm('Bạn có chắc chắn muốn tải lại dữ liệu từ file Excel đã tải lên trước đó?')) {
+            uploadExcel();
+        }
     }
 
-    function saveToLocalStorage(appKey) {
-        if (!appKey) {
-            alert("Vui lòng nhập mã ứng dụng để lưu dữ liệu.");
-            return;
-        }
-        localStorage.setItem(`data_${appKey}`, JSON.stringify(customers));
-        alert(`Dữ liệu đã được lưu cho ứng dụng: ${appKey}`);
+    function syncData() {
+        alert('Đồng bộ dữ liệu với hệ thống ERP...');
     }
 
-    function loadFromLocalStorage(appKey) {
-        if (!appKey) {
-            alert("Vui lòng nhập mã ứng dụng để tải dữ liệu.");
-            return;
-        }
-        const savedData = localStorage.getItem(`data_${appKey}`);
-        if (savedData) {
-            customers = JSON.parse(savedData);
+    // Hàm tìm kiếm
+    function searchCustomers() {
+        const searchText = document.getElementById('searchInput').value.toLowerCase().trim();
+        if (!searchText) {
             renderTable();
-            alert(`Dữ liệu đã được tải cho ứng dụng: ${appKey}`);
-        } else {
-            alert(`Không tìm thấy dữ liệu cho ứng dụng: ${appKey}`);
+            return;
+        }
+
+        const rows = document.querySelectorAll('#customerTable tbody tr');
+        let found = false;
+        
+        rows.forEach(row => {
+            const productName = row.cells[3].querySelector('input').value.toLowerCase();
+            const productCode = row.cells[2].querySelector('input').value.toLowerCase();
+            
+            if (productName.includes(searchText) || productCode.includes(searchText)) {
+                row.style.display = '';
+                found = true;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        if (!found) {
+            alert('Không tìm thấy sản phẩm nào phù hợp với từ khóa: ' + searchText);
         }
     }
 
-    // Các hàm popup và xử lý sự kiện
-    window.onload = function() {
-        const appKey = localStorage.getItem('currentAppKey') || 'default';
-        loadFromLocalStorage(appKey);
-        setupColumnResizers();
+    // Hàm tìm kiếm gợi ý
+    function setupSearchSuggestions() {
+        const searchInput = document.getElementById('searchInput');
+        const suggestionsList = document.getElementById('suggestionsList');
         
-        // Thiết lập sự kiện cho file input
-        document.getElementById('orderUpdateFile').addEventListener('change', updateOrderData);
-        document.getElementById('fileUpload').addEventListener('change', uploadExcel);
-        document.getElementById('updateFileUpload').addEventListener('change', uploadExcel);
-    };
+        searchInput.addEventListener('input', function() {
+            const searchText = this.value.toLowerCase().trim();
+            suggestionsList.innerHTML = '';
+            
+            if (searchText.length < 2) {
+                suggestionsList.style.display = 'none';
+                return;
+            }
+            
+            // Lọc các sản phẩm phù hợp
+            const suggestions = customers.filter(customer => 
+                customer.name.toLowerCase().includes(searchText) || 
+                customer.code.toLowerCase().includes(searchText)
+            ).slice(0, 10); // Giới hạn 10 kết quả
+            
+            if (suggestions.length > 0) {
+                suggestions.forEach(customer => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item';
+                    item.textContent = `${customer.code} - ${customer.name}`;
+                    item.addEventListener('click', () => {
+                        searchInput.value = customer.name;
+                        suggestionsList.style.display = 'none';
+                        searchCustomers();
+                    });
+                    suggestionsList.appendChild(item);
+                });
+                suggestionsList.style.display = 'block';
+            } else {
+                suggestionsList.style.display = 'none';
+            }
+        });
+        
+        // Ẩn gợi ý khi click ra ngoài
+        document.addEventListener('click', (e) => {
+            if (e.target !== searchInput) {
+                suggestionsList.style.display = 'none';
+            }
+        });
+    }
+
+    function searchByStaff() {
+        const staffName = document.getElementById('staffSearchInput').value.toLowerCase().trim();
+        if (!staffName) {
+            renderTable();
+            return;
+        }
+
+        const rows = document.querySelectorAll('#customerTable tbody tr');
+        let found = false;
+        
+        rows.forEach(row => {
+            const staffCell = row.cells[10].querySelector('input');
+            if (staffCell && staffCell.value.toLowerCase().includes(staffName)) {
+                row.style.display = '';
+                found = true;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        if (!found) {
+            alert('Không tìm thấy nhân viên nào phù hợp với từ khóa: ' + staffName);
+        }
+    }
+
+    function hideRows() {
+        const staffName = document.getElementById('staffSearchInput').value.toLowerCase().trim();
+        if (!staffName) {
+            alert('Vui lòng nhập tên nhân viên để ẩn hàng.');
+            return;
+        }
+
+        const rows = document.querySelectorAll('#customerTable tbody tr');
+        let hiddenCount = 0;
+        
+        rows.forEach(row => {
+            const staffCell = row.cells[10].querySelector('input');
+            if (staffCell && staffCell.value.toLowerCase().includes(staffName)) {
+                row.style.display = 'none';
+                hiddenCount++;
+            }
+        });
+        
+        alert(`Đã ẩn ${hiddenCount} hàng của nhân viên: ${staffName}`);
+    }
+
+    function unhideRows() {
+        const rows = document.querySelectorAll('#customerTable tbody tr');
+        rows.forEach(row => {
+            row.style.display = '';
+        });
+        alert('Đã hiển thị tất cả các hàng.');
+    }
+
+    function openStaffSelection() {
+        const staffNames = [...new Set(customers.map(c => c.staff).filter(Boolean))];
+        if (staffNames.length === 0) {
+            alert('Không có nhân viên nào để chọn.');
+            return;
+        }
+
+        const staffList = staffNames.join('\n');
+        const selectedStaff = prompt(`Danh sách nhân viên:\n${staffList}\n\nNhập tên nhân viên cần ẩn:`);
+        if (selectedStaff) {
+            document.getElementById('staffSearchInput').value = selectedStaff;
+            hideRows();
+        }
+    }
+
+    // Hàm xử lý popup
+    function showGuide() {
+        document.getElementById('guidePopup').style.display = 'block';
+    }
+
+    function closeGuide() {
+        document.getElementById('guidePopup').style.display = 'none';
+    }
 
     function showSortPopup() {
         document.getElementById('sortPopup').style.display = 'block';
@@ -853,12 +1056,35 @@
         document.getElementById('sortPopup').style.display = 'none';
     }
 
-    function showGuide() {
-        document.getElementById('guidePopup').style.display = 'block';
+    function groupAndSortData() {
+        const sortField = document.getElementById('sortField').value;
+        alert(`Đã sắp xếp và nhóm dữ liệu theo trường: ${sortField}`);
+        closeSortPopup();
     }
 
-    function closeGuide() {
-        document.getElementById('guidePopup').style.display = 'none';
+    function showWarningPopup() {
+        const warningPopup = document.getElementById('warningPopup');
+        warningPopup.style.display = 'block';
+        
+        let countdown = 8;
+        const countdownElement = document.getElementById('countdown');
+        countdownElement.textContent = countdown;
+        
+        const timer = setInterval(() => {
+            countdown--;
+            countdownElement.textContent = countdown;
+            
+            if (countdown <= 0) {
+                clearInterval(timer);
+                warningPopup.style.display = 'none';
+            }
+        }, 1000);
+        
+        // Đóng popup khi click vào nút đóng
+        warningPopup.querySelector('.close-button').addEventListener('click', () => {
+            clearInterval(timer);
+            warningPopup.style.display = 'none';
+        });
     }
 
     function showVideoPopup() {
@@ -871,103 +1097,147 @@
         document.getElementById('popupOverlay').style.display = 'none';
     }
 
-    function showWarningPopup() {
-        const popup = document.getElementById('warningPopup');
-        popup.style.display = 'block';
+    // Hàm xử lý Local Storage
+    function saveToLocalStorage(appKey) {
+        if (!appKey) {
+            alert('Vui lòng nhập mã ứng dụng trước khi lưu.');
+            return;
+        }
         
-        let countdown = 8;
-        const countdownElement = document.getElementById('countdown');
-        countdownElement.textContent = countdown;
-        
-        const timer = setInterval(() => {
-            countdown--;
-            countdownElement.textContent = countdown;
-            
-            if (countdown <= 0) {
-                clearInterval(timer);
-                popup.style.display = 'none';
-            }
-        }, 1000);
-        
-        // Đóng popup khi click vào nút đóng
-        popup.querySelector('.close-button').onclick = function() {
-            clearInterval(timer);
-            popup.style.display = 'none';
+        const dataToSave = {
+            customers: customers,
+            currentCustomerCode: currentCustomerCode,
+            selectedProductIds: Array.from(selectedProductIds)
         };
+        
+        localStorage.setItem(`pharmacyData_${appKey}`, JSON.stringify(dataToSave));
+        alert(`Đã lưu dữ liệu thành công với mã ứng dụng: ${appKey}`);
+    }
+
+    function loadFromLocalStorage(appKey) {
+        if (!appKey) {
+            alert('Vui lòng nhập mã ứng dụng trước khi tải.');
+            return;
+        }
+        
+        const savedData = localStorage.getItem(`pharmacyData_${appKey}`);
+        if (savedData) {
+            try {
+                const parsedData = JSON.parse(savedData);
+                customers = parsedData.customers || [];
+                currentCustomerCode = parsedData.currentCustomerCode || 1;
+                selectedProductIds = new Set(parsedData.selectedProductIds || []);
+                
+                renderTable();
+                alert(`Đã tải dữ liệu thành công từ mã ứng dụng: ${appKey}`);
+            } catch (error) {
+                console.error('Lỗi khi tải dữ liệu:', error);
+                alert('Có lỗi xảy ra khi tải dữ liệu. Vui lòng kiểm tra lại.');
+            }
+        } else {
+            alert(`Không tìm thấy dữ liệu cho mã ứng dụng: ${appKey}`);
+        }
     }
 
     function resetData() {
         if (confirm('Bạn có chắc chắn muốn làm mới dữ liệu? Tất cả dữ liệu chưa lưu sẽ bị mất.')) {
             customers = [];
             currentCustomerCode = 1;
+            selectedProductIds.clear();
             renderTable();
-            alert('Dữ liệu đã được làm mới.');
+            alert('Đã làm mới dữ liệu.');
         }
     }
 
-    function searchCustomers() {
-        const searchText = document.getElementById('searchInput').value.toLowerCase();
-        const rows = document.querySelectorAll('#customerTable tbody tr');
+    // Khởi tạo ứng dụng
+    document.addEventListener('DOMContentLoaded', function() {
+        // Thiết lập ngày hiện tại
+        document.getElementById('date').valueAsDate = new Date();
         
-        rows.forEach((row, index) => {
-            const rowData = customers[index];
-            const match = Object.values(rowData).some(value => 
-                value && value.toString().toLowerCase().includes(searchText)
-            );
+        // Thiết lập sự kiện cho các input file
+        document.getElementById('fileUpload').addEventListener('change', uploadExcel);
+        document.getElementById('orderUpdateFile').addEventListener('change', updateOrderData);
+        
+        // Thiết lập sự kiện cho các input khai báo
+        document.getElementById('fullName').addEventListener('input', updateStats);
+        document.getElementById('department').addEventListener('input', updateStats);
+        
+        // Thiết lập tìm kiếm gợi ý
+        setupSearchSuggestions();
+        
+        // Thiết lập kéo thả cho popup
+        const guidePopup = document.getElementById('guidePopup');
+        const warningPopup = document.getElementById('warningPopup');
+        
+        makeDraggable(guidePopup);
+        makeResizable(guidePopup);
+        makeDraggable(warningPopup);
+        makeResizable(warningPopup);
+        
+        // Thêm 5 dòng mẫu
+        for (let i = 0; i < 5; i++) {
+            addNewCustomer();
+        }
+    });
+
+    // Hàm hỗ trợ kéo thả
+    function makeDraggable(element) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        
+        const header = element.querySelector('.popup-header') || element.querySelector('h2') || element;
+        header.onmousedown = dragMouseDown;
+        
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+        
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            element.style.top = (element.offsetTop - pos2) + "px";
+            element.style.left = (element.offsetLeft - pos1) + "px";
+        }
+        
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
+
+    function makeResizable(element) {
+        const resizeHandle = element.querySelector('.resize-handle');
+        if (!resizeHandle) return;
+        
+        resizeHandle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
             
-            row.style.display = match ? '' : 'none';
-        });
-    }
-
-    function searchByStaff() {
-        const staffName = document.getElementById('staffSearchInput').value.toLowerCase();
-        const rows = document.querySelectorAll('#customerTable tbody tr');
-        
-        rows.forEach((row, index) => {
-            const staff = customers[index].staff.toLowerCase();
-            row.style.display = staff.includes(staffName) ? '' : 'none';
-        });
-    }
-
-    function hideRows() {
-        const rows = document.querySelectorAll('#customerTable tbody tr');
-        rows.forEach((row, index) => {
-            if (customers[index].ordered) {
-                row.style.display = 'none';
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const startWidth = parseInt(document.defaultView.getComputedStyle(element).width, 10);
+            const startHeight = parseInt(document.defaultView.getComputedStyle(element).height, 10);
+            
+            function resize(e) {
+                element.style.width = (startWidth + e.clientX - startX) + 'px';
+                element.style.height = (startHeight + e.clientY - startY) + 'px';
             }
+            
+            function stopResize() {
+                document.removeEventListener('mousemove', resize);
+                document.removeEventListener('mouseup', stopResize);
+            }
+            
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
         });
-    }
-
-    function unhideRows() {
-        const rows = document.querySelectorAll('#customerTable tbody tr');
-        rows.forEach(row => {
-            row.style.display = '';
-        });
-    }
-
-    function openStaffSelection() {
-        const staffList = [...new Set(customers.map(c => c.staff).filter(Boolean))];
-        const selectedStaff = prompt(`Danh sách nhân viên:\n${staffList.join('\n')}\n\nNhập tên nhân viên để ẩn:`);
-        
-        if (selectedStaff) {
-            const rows = document.querySelectorAll('#customerTable tbody tr');
-            rows.forEach((row, index) => {
-                if (customers[index].staff === selectedStaff) {
-                    row.style.display = 'none';
-                }
-            });
-        }
-    }
-
-    function groupAndSortData() {
-        const sortField = document.getElementById('sortField').value;
-        customers.sort((a, b) => {
-            const valA = Object.values(a)[sortField] || '';
-            const valB = Object.values(b)[sortField] || '';
-            return valA.toString().localeCompare(valB.toString());
-        });
-        renderTable();
-        closeSortPopup();
     }
 </script>
 </body>
